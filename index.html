@@ -233,7 +233,7 @@
             padding: 15px 34px;
             border-radius: 9999px;
             border: 1px solid rgba(232, 93, 4, 0.4);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: background 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
             overflow: hidden;
             box-shadow: 0 4px 25px rgba(232, 93, 4, 0.15);
@@ -272,7 +272,7 @@
             border-radius: 9999px;
             border: 1px solid rgba(255, 255, 255, 0.25);
             background: rgba(255, 255, 255, 0.08);
-            transition: all 0.3s ease;
+            transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
             text-decoration: none;
             display: inline-block;
             cursor: pointer;
@@ -302,7 +302,7 @@
             padding: 7px 15px;
             text-decoration: none;
             display: inline-block;
-            transition: all 0.3s ease;
+            transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
         }
         .btn-gpx:hover {
             background: rgba(232, 93, 4, 0.35);
@@ -490,7 +490,7 @@
             box-shadow: 
                 0 8px 32px rgba(0, 0, 0, 0.06),
                 0 1px 3px rgba(0, 0, 0, 0.03);
-            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: background 0.5s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
             overflow: hidden;
         }
@@ -565,9 +565,9 @@
 
         .anim-1 { animation: fadeInUp 0.8s ease-out 0.1s forwards; opacity: 0; }
         .anim-2 { animation: fadeInUp 0.8s ease-out 0.25s forwards; opacity: 0; }
-        .anim-3 { animation: fadeInUp 0.8s ease-out 1s forwards; opacity: 0; }
-        .anim-4 { animation: fadeInUp 0.8s ease-out 1.15s forwards; opacity: 0; }
-        .anim-5 { animation: fadeInUp 0.8s ease-out 1.3s forwards; opacity: 0; }
+        .anim-3 { animation: fadeInUp 0.8s ease-out 0.9s forwards; opacity: 0; }
+        .anim-4 { animation: fadeInUp 0.8s ease-out 1s forwards; opacity: 0; }
+        .anim-5 { animation: fadeInUp 0.8s ease-out 1.15s forwards; opacity: 0; }
 
         /* === LETTER / WORD ASSEMBLY — los títulos se forman al aparecer === */
         @keyframes letterFly {
@@ -596,37 +596,34 @@
             50%      { transform: translateY(6px); }
         }
 
-        .ltr, .ltr-word { display: inline-block; }
+        /* Los spans heredan la tipografía (si no, la regla global `*` impondría Inter y rompería Syne) */
+        .ltr, .ltr-word { display: inline-block; font-family: inherit; }
 
-        /* Hero — cada letra viene de un sitio distinto y se agrupa formando el título */
+        /* Hero (solo página principal) — cada letra viene de un sitio distinto y se agrupa formando el título */
         .panels.page-0 .title-mega .ltr {
-            animation: letterFly 0.85s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-            animation-delay: calc(0.3s + var(--i, 0) * 0.045s);
+            animation: letterFly 0.8s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+            animation-delay: calc(0.25s + var(--i, 0) * 0.04s);
         }
         /* Hero — subtítulo palabra a palabra */
         .panels.page-0 #hero-content .subtitle-editorial .w {
             display: inline-block;
+            font-family: inherit;
             animation: wordUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-            animation-delay: calc(0.95s + var(--i, 0) * 0.055s);
+            animation-delay: calc(0.85s + var(--i, 0) * 0.05s);
         }
         /* Hero — celdas del contador entran de una en una */
         .anim-4 .cd-cell { animation: cellPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
-        .anim-4 .cd-cell:nth-child(1) { animation-delay: 1.3s; }
-        .anim-4 .cd-cell:nth-child(3) { animation-delay: 1.4s; }
-        .anim-4 .cd-cell:nth-child(5) { animation-delay: 1.5s; }
-        .anim-4 .cd-cell:nth-child(7) { animation-delay: 1.6s; }
+        .anim-4 .cd-cell:nth-child(1) { animation-delay: 1.15s; }
+        .anim-4 .cd-cell:nth-child(3) { animation-delay: 1.25s; }
+        .anim-4 .cd-cell:nth-child(5) { animation-delay: 1.35s; }
+        .anim-4 .cd-cell:nth-child(7) { animation-delay: 1.45s; }
         .anim-4 .cd-sep { animation: riseIn 0.45s ease backwards; }
-        .anim-4 .cd-sep:nth-child(2) { animation-delay: 1.35s; }
-        .anim-4 .cd-sep:nth-child(4) { animation-delay: 1.45s; }
-        .anim-4 .cd-sep:nth-child(6) { animation-delay: 1.55s; }
+        .anim-4 .cd-sep:nth-child(2) { animation-delay: 1.2s; }
+        .anim-4 .cd-sep:nth-child(4) { animation-delay: 1.3s; }
+        .anim-4 .cd-sep:nth-child(6) { animation-delay: 1.4s; }
 
-        /* Títulos de sección — las letras se juntan al abrir cada panel */
-        .panels.page-1 .info-panel .title-section .ltr,
-        .panels.page-2 .form-panel .title-section .ltr,
-        .panels.page-3 .map-panel .title-section .ltr {
-            animation: letterFly 0.75s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-            animation-delay: calc(0.3s + var(--i, 0) * 0.05s);
-        }
+        /* Las letras del título solo se animan en la página principal;
+           el resto de títulos entran con la animación del panel (más fluido) */
 
         /* Panel INFO — cabecera, tarjetas y botón escalonados */
         .panels.page-1 .info-panel .glass-main > .flex.items-center {
@@ -635,27 +632,27 @@
         .panels.page-1 .info-panel .grid > .glass-card {
             animation: riseIn 0.65s cubic-bezier(0.22, 1, 0.36, 1) backwards;
         }
-        .panels.page-1 .info-panel .grid > .glass-card:nth-child(1) { animation-delay: 0.85s; }
-        .panels.page-1 .info-panel .grid > .glass-card:nth-child(2) { animation-delay: 0.97s; }
-        .panels.page-1 .info-panel .grid > .glass-card:nth-child(3) { animation-delay: 1.09s; }
-        .panels.page-1 .info-panel .grid > .glass-card:nth-child(4) { animation-delay: 1.21s; }
+        .panels.page-1 .info-panel .grid > .glass-card:nth-child(1) { animation-delay: 0.45s; }
+        .panels.page-1 .info-panel .grid > .glass-card:nth-child(2) { animation-delay: 0.53s; }
+        .panels.page-1 .info-panel .grid > .glass-card:nth-child(3) { animation-delay: 0.61s; }
+        .panels.page-1 .info-panel .grid > .glass-card:nth-child(4) { animation-delay: 0.69s; }
         .panels.page-1 .info-panel .text-center.mt-8 {
             animation: popIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
-            animation-delay: 1.35s;
+            animation-delay: 0.8s;
         }
 
         /* Panel FORM — subtítulo, campos y pista escalonados */
         .panels.page-2 .form-panel .form-form > p {
-            animation: riseIn 0.55s ease-out 0.7s backwards;
+            animation: riseIn 0.55s ease-out 0.4s backwards;
         }
         /* Los campos entran escalonados; #form-error queda fuera para no retrasar
            su mensaje si aparece después (las animaciones no corren en display:none) */
         .panels.page-2 .form-panel #signup-form > *:not(#form-error) {
             animation: riseIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards;
         }
-        .panels.page-2 .form-panel #signup-form > *:not(#form-error):nth-child(1) { animation-delay: 0.85s; }
-        .panels.page-2 .form-panel #signup-form > *:not(#form-error):nth-child(2) { animation-delay: 0.95s; }
-        .panels.page-2 .form-panel #signup-form > *:not(#form-error):nth-child(4) { animation-delay: 1.1s; }
+        .panels.page-2 .form-panel #signup-form > *:not(#form-error):nth-child(1) { animation-delay: 0.5s; }
+        .panels.page-2 .form-panel #signup-form > *:not(#form-error):nth-child(2) { animation-delay: 0.57s; }
+        .panels.page-2 .form-panel #signup-form > *:not(#form-error):nth-child(4) { animation-delay: 0.67s; }
 
         /* Pista bajo el formulario (solo móvil) */
         .form-hint {
@@ -674,7 +671,7 @@
             animation: hintBounce 1.6s ease-in-out infinite;
         }
         .panels.page-2 .form-panel .form-hint {
-            animation: fadeInUp 0.6s ease-out 1.3s backwards;
+            animation: fadeInUp 0.6s ease-out 0.85s backwards;
         }
 
         /* Panel MAPA — pila, mapa y tarjetas escalonados */
@@ -683,13 +680,13 @@
             animation-delay: 0.15s;
         }
         .panels.page-3 .map-panel .glass-card-map {
-            animation: fadeInUp 0.7s ease-out 0.7s backwards;
+            animation: fadeInUp 0.7s ease-out 0.4s backwards;
         }
         .panels.page-3 .map-panel .space-y-3 > .glass-card {
             animation: riseIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
         }
-        .panels.page-3 .map-panel .space-y-3 > .glass-card:nth-child(1) { animation-delay: 0.9s; }
-        .panels.page-3 .map-panel .space-y-3 > .glass-card:nth-child(2) { animation-delay: 1.02s; }
+        .panels.page-3 .map-panel .space-y-3 > .glass-card:nth-child(1) { animation-delay: 0.55s; }
+        .panels.page-3 .map-panel .space-y-3 > .glass-card:nth-child(2) { animation-delay: 0.63s; }
 
         @keyframes float-particle {
             0% { transform: translateY(100vh) scale(0); opacity: 0; }
@@ -725,7 +722,7 @@
             border-radius: 50%;
             background: rgba(0, 0, 0, 0.15);
             border: 1px solid rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
+            transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
             cursor: pointer;
         }
 
@@ -779,7 +776,7 @@
             border: 1px solid rgba(255, 160, 80, 0.15);
             border-radius: 20px;
             box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
-            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: background 0.5s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
             overflow: hidden;
         }
@@ -875,6 +872,8 @@
         @media (max-width: 768px) {
             /* Hide mouse glow on mobile */
             .mouse-glow { display: none !important; }
+            /* El barrido de luz usa mix-blend-mode (costoso en móviles): se desactiva */
+            .bg-sweep { display: none !important; }
 
             /* Panel dots smaller and closer to edge */
             .panel-dots { right: 12px; gap: 8px; }
@@ -944,7 +943,7 @@
             .panels.page-1 { transform: translateY(-100vh); }
             .panels.page-2 { transform: translateY(-200vh); }
             .panels.page-3 { transform: translateY(-300vh); }
-            .panel { overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+            .panel { overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
             .map-panel > .relative.z-10 { min-height: auto !important; }
         }
 
@@ -1340,7 +1339,8 @@
 
         // Particles
         const pc = document.getElementById('particles');
-        for (let i = 0; i < 8; i++) {
+        const isSmallScreen = window.matchMedia('(max-width: 768px)').matches;
+        for (let i = 0; i < (isSmallScreen ? 4 : 8); i++) {
             const p = document.createElement('div');
             p.className = 'particle';
             p.style.left = Math.random() * 100 + '%';
@@ -1437,7 +1437,7 @@
             });
         }
 
-        document.querySelectorAll('.title-mega, .title-section').forEach(splitTitleLetters);
+        document.querySelectorAll('#hero-content .title-mega').forEach(splitTitleLetters);
         document.querySelectorAll('#hero-content .subtitle-editorial').forEach(splitWords);
 
         // Panel navigation with wheel
