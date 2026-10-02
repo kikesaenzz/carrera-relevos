@@ -1729,6 +1729,15 @@
                     .catch(function () { encolarPendiente(d); });
             });
         }
+        // ?reset=1 -> borra el estado local de inscripción (para empezar de cero)
+        if (new URLSearchParams(location.search).get('reset') === '1') {
+            try {
+                localStorage.removeItem('carrera_relevos_my_email');
+                localStorage.removeItem('carrera_relevos_inscriptions');
+                localStorage.removeItem(PENDIENTES_KEY);
+                history.replaceState(null, '', location.pathname);
+            } catch (e) { }
+        }
         flushearPendientes();
 
         // Confetti
