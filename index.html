@@ -543,6 +543,10 @@
         .leaflet-container {
             background: #f5f1e9 !important;
             border-radius: 16px 16px 0 0;
+            /* Los gestos táctiles sobre el mapa se gestionan en JS (initMap):
+               swipe vertical = scroll del panel, swipe horizontal = pan del mapa,
+               pellizco = zoom del mapa. El navegador no debe interceptar nada. */
+            touch-action: none !important;
         }
         .leaflet-control-zoom { border: none !important; }
         .leaflet-control-zoom a {
@@ -1510,13 +1514,23 @@
         let lastTransition = 0;
         const COOLDOWN = 550;
         const inMap = el => !!(el && el.closest && el.closest('.leaflet-container'));
-        const heroPanel = document.getElementById('hero-panel');
-        const heroOverflows = () => heroPanel.scrollHeight > heroPanel.clientHeight + 4;
-        // Si el hero desborda (ventana baja), permite scroll interno hasta el borde
-        const heroScrollBlocks = (goDown) => {
-            if (currentPage !== 0 || !heroOverflows()) return false;
-            const atTop = heroPanel.scrollTop <= 1;
-            const atBottom = heroPanel.scrollTop + heroPanel.clientHeight >= heroPanel.scrollHeight - 1;
+        const panelEls = Array.from(document.querySelectorAll('#panels > .panel'));
+        const activePanel = () => panelEls[currentPage] || null;
+        // Un panel sólo puede hacer scroll interno si su overflow lo permite
+        // (en desktop, p. ej. .map-panel/.form-panel/.info-panel, overflow es hidden)
+        const panelScrollable = (el) => {
+            if (!el) return false;
+            const oy = getComputedStyle(el).overflowY;
+            if (oy !== 'auto' && oy !== 'scroll') return false;
+            return el.scrollHeight > el.clientHeight + 4;
+        };
+        // Si el panel activo desborda (pantalla baja), deja hacer scroll interno
+        // hasta el borde antes de navegar de página
+        const panelScrollBlocks = (goDown) => {
+            const el = activePanel();
+            if (!panelScrollable(el)) return false;
+            const atTop = el.scrollTop <= 1;
+            const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
             return goDown ? !atBottom : !atTop;
         };
 
@@ -1535,7 +1549,7 @@
         let wheelTimer = null;
         window.addEventListener('wheel', (e) => {
             if (inMap(e.target)) return;
-            if (heroScrollBlocks(e.deltaY > 0)) return; // deja hacer scroll interno al hero
+            if (panelScrollBlocks(e.deltaY > 0)) return; // deja hacer scroll interno al panel
             e.preventDefault();
             if (wheelTimer) return;
             wheelTimer = setTimeout(() => { wheelTimer = null; }, 60);
@@ -1546,15 +1560,22 @@
         // Touch support (ignores gestures over the map)
         let touchStartY = 0;
         let touchFromMap = false;
+        let touchStartScroll = 0;
         window.addEventListener('touchstart', (e) => {
             touchFromMap = inMap(e.target);
             touchStartY = e.touches[0].clientY;
+            const el = activePanel();
+            touchStartScroll = el ? el.scrollTop : 0;
         }, { passive: true });
         window.addEventListener('touchend', (e) => {
             if (touchFromMap) return;
             const diff = touchStartY - e.changedTouches[0].clientY;
             if (Math.abs(diff) > 40) {
-                if (heroScrollBlocks(diff > 0)) return; // deja hacer scroll interno al hero
+                // Si el gesto movió el contenido del panel, manda el scroll
+                // interno: no navegues de página a mitad de lectura
+                const el = activePanel();
+                if (el && Math.abs(el.scrollTop - touchStartScroll) > 1) return;
+                if (panelScrollBlocks(diff > 0)) return; // deja hacer scroll interno al panel
                 if (diff > 0) goToPage(currentPage + 1);
                 else goToPage(currentPage - 1);
             }
@@ -1567,8 +1588,14 @@
         window.addEventListener('keydown', (e) => {
             const t = e.target;
             if (t && t.closest && t.closest('input, textarea, select')) return;
-            if (e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); goToPage(currentPage + 1); }
-            if (e.key === 'ArrowUp') { e.preventDefault(); goToPage(currentPage - 1); }
+            if (e.key === 'ArrowDown' || e.key === ' ') {
+                if (panelScrollBlocks(true)) { e.preventDefault(); activePanel().scrollTop += 80; return; }
+                e.preventDefault(); goToPage(currentPage + 1);
+            }
+            if (e.key === 'ArrowUp') {
+                if (panelScrollBlocks(false)) { e.preventDefault(); activePanel().scrollTop -= 80; return; }
+                e.preventDefault(); goToPage(currentPage - 1);
+            }
         });
 
         // Map + Elevation (lazy init when opening page 3)
@@ -1616,6 +1643,43 @@
                     setTimeout(() => { bar.style.height = height + 'px'; }, 200);
                 });
             }
+
+            // Gestos táctiles sobre el mapa: el swipe vertical hace scroll del panel
+            // (así el contenido de debajo siempre es legible); el mapa sólo responde
+            // a swipe horizontal (pan) y pellizco (zoom)
+            const mapEl = document.getElementById('map');
+            const panelEl = mapEl.closest('.panel');
+            let gActive = false, gDecided = false, gVertical = false;
+            let gX0 = 0, gY0 = 0, gS0 = 0;
+            mapEl.addEventListener('touchstart', (e) => {
+                if (e.touches.length !== 1) { gActive = false; return; }
+                gActive = true; gDecided = false; gVertical = false;
+                gX0 = e.touches[0].clientX;
+                gY0 = e.touches[0].clientY;
+                gS0 = panelEl ? panelEl.scrollTop : 0;
+            }, { passive: true });
+            mapEl.addEventListener('touchmove', (e) => {
+                if (!gActive) return;
+                if (e.touches.length !== 1) { gActive = false; return; }
+                const x = e.touches[0].clientX, y = e.touches[0].clientY;
+                if (!gDecided) {
+                    const dx = Math.abs(x - gX0), dy = Math.abs(y - gY0);
+                    if (dx + dy < 6) { // aún no se ve la dirección: congelamos todo
+                        if (e.cancelable) e.preventDefault();
+                        e.stopImmediatePropagation();
+                        return;
+                    }
+                    gDecided = true;
+                    gVertical = dy > dx;
+                }
+                if (!gVertical) return; // horizontal: Leaflet panea el mapa
+                if (e.cancelable) e.preventDefault();
+                e.stopImmediatePropagation(); // Leaflet no recibe el gesto vertical
+                if (panelEl) panelEl.scrollTop = gS0 - (y - gY0);
+            }, { passive: false, capture: true });
+            const gEnd = () => { gActive = false; };
+            mapEl.addEventListener('touchend', gEnd, { passive: true });
+            mapEl.addEventListener('touchcancel', gEnd, { passive: true });
         }
 
         // Registration form
