@@ -1692,6 +1692,45 @@
             localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
         }
 
+        // ===== Inscripciones centralizadas (Google Sheets) =====
+        // Instala el endpoint (apps-script/Codigo.gs) siguiendo INSCRIPCIONES.md
+        // y pega aquí la URL /exec que te dé Google. Vacío = desactivado.
+        let INSCRIPCIONES_ENDPOINT = '';
+        const PENDIENTES_KEY = 'carrera_relevos_pendientes';
+
+        function enviarInscripcionCentral(datos) {
+            if (!INSCRIPCIONES_ENDPOINT) return Promise.resolve({ ok: false, omitido: true });
+            return fetch(INSCRIPCIONES_ENDPOINT + '?accion=guardar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(datos)
+            }).then(function (r) { return r.json(); });
+        }
+
+        function encolarPendiente(datos) {
+            try {
+                const p = JSON.parse(localStorage.getItem(PENDIENTES_KEY) || '[]');
+                if (!p.some(function (x) { return x.email === datos.email; })) p.push(datos);
+                localStorage.setItem(PENDIENTES_KEY, JSON.stringify(p));
+            } catch (e) { /* sin localStorage no hay cola */ }
+        }
+
+        // Si un envío falló (sin conexión, endpoint caído…) se reencola
+        // y se reintenta automáticamente en la próxima visita
+        function flushearPendientes() {
+            if (!INSCRIPCIONES_ENDPOINT) return;
+            let p = [];
+            try { p = JSON.parse(localStorage.getItem(PENDIENTES_KEY) || '[]'); } catch (e) { return; }
+            if (!p.length) return;
+            localStorage.removeItem(PENDIENTES_KEY);
+            p.forEach(function (d) {
+                enviarInscripcionCentral(d)
+                    .then(function (r) { if (!r || r.ok !== true) encolarPendiente(d); })
+                    .catch(function () { encolarPendiente(d); });
+            });
+        }
+        flushearPendientes();
+
         // Confetti
         function launchConfetti() {
             const container = document.getElementById('confetti-container');
@@ -1774,6 +1813,11 @@
             saveInscriptions(inscriptions);
             localStorage.setItem('carrera_relevos_my_email', email);
 
+            // Envío a la hoja central (si está configurado); si falla, se reencola
+            enviarInscripcionCentral({ nombre: nombre, email: email })
+                .then(function (r) { if (!r || r.ok !== true) encolarPendiente({ nombre: nombre, email: email }); })
+                .catch(function () { encolarPendiente({ nombre: nombre, email: email }); });
+
             // Send confirmation email
             sendConfirmationEmail(nombre, email);
 
@@ -1782,6 +1826,139 @@
             document.getElementById('reg-success').classList.add('show');
             launchConfetti();
         });
+
+        // ===== Panel privado de inscripciones (?admin=1) =====
+        (function () {
+            function initAdmin() {
+                if (new URLSearchParams(location.search).get('admin') !== '1') return;
+                const panel = document.getElementById('admin-panel');
+                if (!panel) return;
+                const $ = function (id) { return document.getElementById(id); };
+                let clave = '';
+                try { clave = sessionStorage.getItem('carrera_relevos_admin_clave') || ''; } catch (e) { }
+                let lista = [], hojaUrl = '';
+
+                panel.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+
+                function esc(s) {
+                    return String(s).replace(/[&<>"']/g, function (c) {
+                        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+                    });
+                }
+                function fmtFecha(iso) {
+                    const d = new Date(iso);
+                    return isNaN(d) ? '—' : d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                }
+                function cerrar() {
+                    panel.classList.add('hidden');
+                    document.body.style.overflow = '';
+                    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) { }
+                }
+                function mostrarError(msg) {
+                    $('admin-error').classList.remove('hidden');
+                    $('admin-error').textContent = msg;
+                    $('admin-count').textContent = '';
+                    $('admin-body').innerHTML = '';
+                }
+                function render() {
+                    $('admin-error').classList.add('hidden');
+                    $('admin-count').textContent = lista.length + (lista.length === 1 ? ' persona inscrita' : ' personas inscritas');
+                    if (!lista.length) {
+                        $('admin-body').innerHTML = '<div style="padding:28px 0;color:rgba(255,255,255,.5);text-align:center;">Todavía no hay inscripciones.</div>';
+                        return;
+                    }
+                    const filas = lista.map(function (x, i) {
+                        return '<tr style="border-bottom:1px solid rgba(255,255,255,.08);">' +
+                            '<td style="padding:10px 6px;color:rgba(255,255,255,.45);">' + (i + 1) + '</td>' +
+                            '<td style="padding:10px 6px;white-space:nowrap;color:rgba(255,255,255,.7);">' + fmtFecha(x.fecha) + '</td>' +
+                            '<td style="padding:10px 6px;font-weight:600;">' + esc(x.nombre) + '</td>' +
+                            '<td style="padding:10px 6px;"><a href="mailto:' + esc(x.email) + '" style="color:#FFB347;text-decoration:none;">' + esc(x.email) + '</a></td>' +
+                            '</tr>';
+                    }).join('');
+                    $('admin-body').innerHTML =
+                        '<table style="width:100%;border-collapse:collapse;font-size:14px;">' +
+                        '<thead><tr style="color:rgba(255,180,100,.9);font-size:11px;letter-spacing:.15em;text-transform:uppercase;text-align:left;border-bottom:1px solid rgba(255,180,100,.3);">' +
+                        '<th style="padding:8px 6px;">#</th><th style="padding:8px 6px;">Fecha</th><th style="padding:8px 6px;">Nombre</th><th style="padding:8px 6px;">Email</th>' +
+                        '</tr></thead><tbody>' + filas + '</tbody></table>';
+                }
+                function cargar() {
+                    if (!INSCRIPCIONES_ENDPOINT) { mostrarError('Falta configurar INSCRIPCIONES_ENDPOINT en index.html (ver INSCRIPCIONES.md).'); return; }
+                    if (!clave) {
+                        clave = (window.prompt('Clave de administración de inscripciones:') || '').trim();
+                        if (!clave) { mostrarError('Necesitas la clave para ver las inscripciones.'); return; }
+                    }
+                    $('admin-error').classList.add('hidden');
+                    $('admin-body').innerHTML = '<div style="padding:28px 0;color:rgba(255,255,255,.5);text-align:center;">Cargando…</div>';
+                    fetch(INSCRIPCIONES_ENDPOINT + '?accion=lista&clave=' + encodeURIComponent(clave))
+                        .then(function (r) { return r.json(); })
+                        .then(function (r) {
+                            if (!r || r.ok !== true) {
+                                try { sessionStorage.removeItem('carrera_relevos_admin_clave'); } catch (e) { }
+                                clave = '';
+                                mostrarError(r && r.error === 'clave' ? 'Clave incorrecta.' : 'No se pudo conectar con la hoja de inscripciones.');
+                                return;
+                            }
+                            try { sessionStorage.setItem('carrera_relevos_admin_clave', clave); } catch (e) { }
+                            lista = r.lista || [];
+                            hojaUrl = r.hoja || '';
+                            render();
+                        })
+                        .catch(function () { mostrarError('No se pudo conectar. Comprueba tu conexión y el endpoint.'); });
+                }
+                $('admin-close').addEventListener('click', cerrar);
+                $('admin-refresh').addEventListener('click', cargar);
+                $('admin-sheet').addEventListener('click', function () { if (hojaUrl) window.open(hojaUrl, '_blank'); });
+                $('admin-csv').addEventListener('click', function () {
+                    if (!lista.length) return;
+                    const csv = ['fecha;nombre;email'].concat(lista.map(function (x) {
+                        return [fmtFecha(x.fecha), x.nombre, x.email].map(function (v) {
+                            return '"' + String(v).replace(/"/g, '""') + '"';
+                        }).join(';');
+                    })).join('\n');
+                    const done = function () {
+                        const b = $('admin-csv'), t = b.textContent;
+                        b.textContent = '¡Copiado!';
+                        setTimeout(function () { b.textContent = t; }, 1500);
+                    };
+                    const fallback = function () {
+                        const ta = document.createElement('textarea');
+                        ta.value = csv;
+                        document.body.appendChild(ta);
+                        ta.select();
+                        try { document.execCommand('copy'); done(); } catch (e) { }
+                        ta.remove();
+                    };
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(csv).then(done).catch(fallback);
+                    } else fallback();
+                });
+                document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrar(); });
+                cargar();
+            }
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initAdmin);
+            else initAdmin();
+        })();
     </script>
+    <!-- Panel privado de inscripciones: se abre con ?admin=1 -->
+    <div id="admin-panel" class="hidden" style="position:fixed;inset:0;z-index:9999;background:rgba(5,5,9,0.97);backdrop-filter:blur(10px);color:#fff;font-family:'Inter',sans-serif;overflow-y:auto;">
+        <div style="max-width:780px;margin:0 auto;padding:24px 16px 56px;">
+            <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                <div>
+                    <div style="font-size:11px;letter-spacing:.25em;text-transform:uppercase;color:rgba(255,180,100,.75);margin-bottom:6px;">Panel privado</div>
+                    <h2 style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:#FFB347;line-height:1;">Personas inscritas</h2>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button id="admin-refresh" type="button" style="padding:8px 14px;border-radius:9999px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(255,180,100,.45);background:transparent;color:#FFB347;">Actualizar</button>
+                    <button id="admin-sheet" type="button" style="padding:8px 14px;border-radius:9999px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(255,180,100,.45);background:transparent;color:#FFB347;">Google Sheets</button>
+                    <button id="admin-csv" type="button" style="padding:8px 14px;border-radius:9999px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(255,180,100,.45);background:transparent;color:#FFB347;">Copiar CSV</button>
+                    <button id="admin-close" type="button" style="padding:8px 14px;border-radius:9999px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(255,255,255,.3);background:transparent;color:rgba(255,255,255,.75);">Cerrar</button>
+                </div>
+            </div>
+            <div id="admin-count" style="margin:18px 0 10px;font-size:15px;color:rgba(255,255,255,.75);"></div>
+            <div id="admin-error" class="hidden" style="margin:12px 0;padding:12px 14px;border:1px solid rgba(239,68,68,.5);background:rgba(239,68,68,.12);color:#fca5a5;border-radius:12px;font-size:14px;"></div>
+            <div id="admin-body" style="overflow-x:auto;"></div>
+        </div>
+    </div>
 </body>
 </html>
