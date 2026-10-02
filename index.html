@@ -774,17 +774,36 @@
         .form-panel {
             position: relative;
             display: flex;
-            align-items: center;
+            /* Los auto margins del hijo centran cuando el contenido cabe y lo
+               alinean arriba cuando no (para poder hacer scroll en vez de
+               recortarlo por arriba) */
+            align-items: flex-start;
             justify-content: center;
+            overflow-x: hidden;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            scrollbar-width: none;
         }
+        .form-panel::-webkit-scrollbar { display: none; }
+        .form-panel > .relative.z-10 { margin-top: auto; margin-bottom: auto; }
 
         /* === INFO PANEL === */
         .info-panel {
             position: relative;
             display: flex;
-            align-items: center;
+            /* Igual que el formulario: centrado que se adapta a cualquier
+               resolución y altura de ventana */
+            align-items: flex-start;
             justify-content: center;
+            overflow-x: hidden;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            scrollbar-width: none;
         }
+        .info-panel::-webkit-scrollbar { display: none; }
+        .info-panel > .relative.z-10 { margin-top: auto; margin-bottom: auto; }
 
         /* Warm orange glass card — main container */
         .glass-main {
@@ -981,6 +1000,8 @@
 
         @media (max-width: 480px) {
             .info-panel .glass-main, .form-panel .glass-main { padding: 18px 14px !important; }
+            /* Más ancho útil en móviles estrechos */
+            .info-panel > .relative.z-10 { padding-left: 16px; padding-right: 16px; }
             .cd-cell { min-width: 54px; padding: 4px 4px; }
         }
 
@@ -1531,7 +1552,7 @@
         const panelEls = Array.from(document.querySelectorAll('#panels > .panel'));
         const activePanel = () => panelEls[currentPage] || null;
         // Un panel sólo puede hacer scroll interno si su overflow lo permite
-        // (en desktop, p. ej. .map-panel/.form-panel/.info-panel, overflow es hidden)
+        // (hero, Participa e inscripción ya lo hacen; el mapa, solo en móvil)
         const panelScrollable = (el) => {
             if (!el) return false;
             const oy = getComputedStyle(el).overflowY;
