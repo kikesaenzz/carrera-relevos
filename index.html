@@ -937,19 +937,27 @@
                 border-radius: 24px;
                 margin: 12px 0;
             }
-            .form-panel .glass-main.p-6, .info-panel .glass-main.p-6 {
+            .form-panel .glass-main.p-6 {
                 padding: 20px 16px !important;
             }
             /* El formulario queda centrado en pantalla; si no cabe, sigue haciendo scroll */
             .form-panel > .relative.z-10 { margin-top: auto; margin-bottom: auto; }
             .form-hint { display: block; }
-            .info-panel .title-section { margin-bottom: 22px; }
+            /* Participa: contenido comprimido para que quepa en pantallas bajas.
+               Si aun así desborda, el scroll interno sigue funcionando y la
+               navegación por gestos ya no se atasca (ver touchmove). */
+            .info-panel > .relative.z-10 { padding-top: 8px !important; padding-bottom: 8px !important; }
+            .info-panel .glass-main { padding: 18px 16px !important; }
+            .info-panel .glass-main > .flex.items-center { margin-bottom: 14px !important; }
+            .info-panel .title-section { margin-bottom: 14px; }
+            .info-panel .grid { gap: 10px !important; }
             .info-panel .glass-card {
                 border-radius: 16px;
-                padding: 14px !important;
+                padding: 12px !important;
             }
-            .info-panel .glass-card h3 { font-size: 1rem; }
-            .info-panel .glass-card p { font-size: 0.9rem; }
+            .info-panel .glass-card h3 { font-size: 0.95rem; margin-bottom: 4px; }
+            .info-panel .glass-card p { font-size: 0.85rem; line-height: 1.45; }
+            .info-panel .text-center.mt-8 { margin-top: 14px !important; }
             .form-input { padding: 13px 15px; font-size: 16px; border-radius: 12px; }
 
             /* Map panel — scrollable on mobile */
@@ -1185,13 +1193,19 @@
                         <div class="form-success" id="reg-success">
                             <h3 class="title-section mb-3">¡Inscrito!</h3>
                             <p class="text-base mb-1" style="color: rgba(255,255,255,0.75);">Tu plaza está reservada.</p>
-                            <p class="text-base mb-4" style="color: rgba(255,255,255,0.5);">Los equipos se formarán allí antes de empezar.</p>
-                            <p class="text-sm" style="color: rgba(232,93,4,0.8);">Recibirás un correo de confirmación</p>
+                            <p class="text-base mb-3" style="color: rgba(255,255,255,0.5);">Los equipos se formarán allí antes de empezar.</p>
+                            <p class="text-sm mb-6" style="color: rgba(232,93,4,0.8);">Recibirás un correo de confirmación</p>
+                            <div class="flex flex-col sm:flex-row gap-3 justify-center items-stretch sm:items-center">
+                                <button type="button" onclick="otraPersona()" class="btn-fire text-center">Añadir a otra persona</button>
+                                <button type="button" onclick="goToPage(3)" class="btn-ghost text-center">Ver la ruta</button>
+                            </div>
                         </div>
 
                         <div class="form-success" id="reg-duplicate">
-                            <h3 class="title-section mb-3">Ya estás inscrito</h3>
-                            <p class="text-base" style="color: rgba(255,255,255,0.7);">Este email ya tiene una inscripción registrada.</p>
+                            <h3 class="title-section mb-3">Correo en uso</h3>
+                            <p class="text-base mb-2" style="color: rgba(255,255,255,0.7);">Este email ya tiene una inscripción registrada.</p>
+                            <p class="text-base mb-6" style="color: rgba(255,255,255,0.5);">Si quieres apuntar a otra persona, usa el botón de abajo.</p>
+                            <button type="button" onclick="otraPersona()" class="btn-fire text-center">Añadir a otra persona</button>
                         </div>
                     </div>
 
@@ -1558,27 +1572,72 @@
         }, { passive: false });
 
         // Touch support (ignores gestures over the map)
+        //
+        // Regla: mientras el panel activo aún pueda desplazarse en la dirección
+        // del gesto, manda el scroll interno. En cuanto llega al borde (o si no
+        // desborda), el mismo gesto continúa y navega a la siguiente sección.
+        // Así no hay que "luchar" con el panel Participa en el móvil.
         let touchStartY = 0;
         let touchFromMap = false;
         let touchStartScroll = 0;
+        let touchEdgeDown = false;   // ¿el panel ya estaba al borde inferior al empezar?
+        let touchEdgeUp = false;     // ¿el panel ya estaba al borde superior al empezar?
+        let touchEdgeY = null;       // dedo en el momento en que se alcanzó el borde
+        let touchDir = 0;            // 1 = sube el dedo (ir adelante), -1 = baja
+        let touchNavFired = false;   // ya se navegó con este gesto
+
+        // ¿El panel puede desplazarse más en esa dirección? Si no, está al borde
+        const panelAtEdge = (el, goDown) => {
+            if (!el || !panelScrollable(el)) return true;
+            return goDown
+                ? (el.scrollTop + el.clientHeight >= el.scrollHeight - 2)
+                : (el.scrollTop <= 2);
+        };
+
         window.addEventListener('touchstart', (e) => {
             touchFromMap = inMap(e.target);
             touchStartY = e.touches[0].clientY;
             const el = activePanel();
             touchStartScroll = el ? el.scrollTop : 0;
+            touchEdgeDown = panelAtEdge(el, true);
+            touchEdgeUp = panelAtEdge(el, false);
+            touchEdgeY = null;
+            touchDir = 0;
+            touchNavFired = false;
         }, { passive: true });
-        window.addEventListener('touchend', (e) => {
-            if (touchFromMap) return;
-            const diff = touchStartY - e.changedTouches[0].clientY;
-            if (Math.abs(diff) > 40) {
-                // Si el gesto movió el contenido del panel, manda el scroll
-                // interno: no navegues de página a mitad de lectura
-                const el = activePanel();
-                if (el && Math.abs(el.scrollTop - touchStartScroll) > 1) return;
-                if (panelScrollBlocks(diff > 0)) return; // deja hacer scroll interno al panel
-                if (diff > 0) goToPage(currentPage + 1);
-                else goToPage(currentPage - 1);
+
+        window.addEventListener('touchmove', (e) => {
+            if (touchFromMap || touchNavFired || e.touches.length !== 1) return;
+            const y = e.touches[0].clientY;
+            const dy = touchStartY - y;
+            if (Math.abs(dy) < 24) return;
+            const goDown = dy > 0;
+            const dir = goDown ? 1 : -1;
+            if (touchDir !== dir) { touchDir = dir; touchEdgeY = null; } // cambió de dirección
+
+            const el = activePanel();
+            if (!panelAtEdge(el, goDown)) { touchEdgeY = null; return; } // aún queda scroll: el navegador lo lleva
+            if (touchEdgeY === null) {
+                // Si ya estaba al borde al empezar, la cuenta va desde el inicio;
+                // si llegó al borde en mitad del gesto, hacen falta 55px más
+                touchEdgeY = (goDown ? touchEdgeDown : touchEdgeUp) ? touchStartY : y;
             }
+            if (Math.abs(y - touchEdgeY) >= 55) {
+                touchNavFired = true;
+                goToPage(currentPage + (goDown ? 1 : -1));
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchend', (e) => {
+            if (touchFromMap || touchNavFired) return;
+            const diff = touchStartY - e.changedTouches[0].clientY;
+            if (Math.abs(diff) < 40) return;
+            const el = activePanel();
+            // Si el scroll interno se llevó el gesto, manda él: no se navega a
+            // mitad de lectura (el siguiente gesto ya saldrá del borde)
+            if (el && Math.abs(el.scrollTop - touchStartScroll) > 1) return;
+            if (!panelAtEdge(el, diff > 0)) return;
+            goToPage(currentPage + (diff > 0 ? 1 : -1));
         }, { passive: true });
 
         // Dot clicks
@@ -1695,8 +1754,9 @@
         // ===== Inscripciones centralizadas (Google Sheets) =====
         // Instala el endpoint (apps-script/Codigo.gs) siguiendo INSCRIPCIONES.md
         // y pega aquí la URL /exec que te dé Google. Vacío = desactivado.
-        let INSCRIPCIONES_ENDPOINT = 'https://script.google.com/macros/s/AKfycbw0KAU67ROmmdZS8i634_BUcQKZ96iH_jsXpqQLIbQl0RHfdiAOw95c3QU8Zz3hTXb3lg/exec';
+        let INSCRIPCIONES_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzTd86FxpwABsqEmh-7G1IwEMr12-jJS__-IurPUKfm7MiL-IkqKnUlWaiAUtE-hH7xyQ/exec';
         const PENDIENTES_KEY = 'carrera_relevos_pendientes';
+        const MY_EMAIL_KEY = 'carrera_relevos_my_email';
 
         function enviarInscripcionCentral(datos) {
             if (!INSCRIPCIONES_ENDPOINT) return Promise.resolve({ ok: false, omitido: true });
@@ -1705,6 +1765,49 @@
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(datos)
             }).then(function (r) { return r.json(); });
+        }
+
+        // ¿Existe ya este email en la hoja central? null = no se pudo consultar
+        // (si el script de Google aún no está desplegado con ?accion=comprobar,
+        // devuelve null y no se toca nada)
+        function comprobarEmailCentral(email) {
+            if (!INSCRIPCIONES_ENDPOINT) return Promise.resolve(null);
+            return fetch(INSCRIPCIONES_ENDPOINT + '?accion=comprobar&email=' + encodeURIComponent(email))
+                .then(function (r) { return r.json(); })
+                .then(function (r) {
+                    return (r && r.ok === true && typeof r.existe === 'boolean') ? r.existe : null;
+                })
+                .catch(function () { return null; });
+        }
+
+        // ===== Pantallas del formulario =====
+        function mostrarFormulario() {
+            document.getElementById('reg-form').classList.remove('hidden');
+            document.getElementById('reg-success').classList.remove('show');
+            document.getElementById('reg-duplicate').classList.remove('show');
+        }
+        function mostrarExito() {
+            document.getElementById('reg-form').classList.add('hidden');
+            document.getElementById('reg-duplicate').classList.remove('show');
+            document.getElementById('reg-success').classList.add('show');
+        }
+        function mostrarDuplicado() {
+            document.getElementById('reg-form').classList.add('hidden');
+            document.getElementById('reg-success').classList.remove('show');
+            document.getElementById('reg-duplicate').classList.add('show');
+        }
+        // Botón "Añadir a otra persona": vuelve al formulario sin borrar
+        // a quien ya estaba inscrito (la hoja central sigue siendo la referencia)
+        function otraPersona() {
+            mostrarFormulario();
+            document.getElementById('signup-form').reset();
+            const err = document.getElementById('form-error');
+            err.style.display = 'none';
+            err.textContent = '';
+            setTimeout(function () {
+                const campo = document.getElementById('field-nombre');
+                try { campo.focus({ preventScroll: true }); } catch (e) { campo.focus(); }
+            }, 80);
         }
 
         function encolarPendiente(datos) {
@@ -1732,12 +1835,16 @@
         // ?reset=1 -> borra el estado local de inscripción (para empezar de cero)
         if (new URLSearchParams(location.search).get('reset') === '1') {
             try {
-                localStorage.removeItem('carrera_relevos_my_email');
-                localStorage.removeItem('carrera_relevos_inscriptions');
+                localStorage.removeItem(MY_EMAIL_KEY);
+                localStorage.removeItem(STORAGE_KEY);
                 localStorage.removeItem(PENDIENTES_KEY);
                 history.replaceState(null, '', location.pathname);
             } catch (e) { }
         }
+        // Cola pendiente tal y como estaba al cargar (antes de reenviarla):
+        // si tu email sigue ahí, la hoja central aún puede no tenerlo
+        let pendientesAlCargar = [];
+        try { pendientesAlCargar = JSON.parse(localStorage.getItem(PENDIENTES_KEY) || '[]'); } catch (e) { }
         flushearPendientes();
 
         // Confetti
@@ -1774,6 +1881,8 @@
             emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
                 nombre: nombre,
                 email: email,
+                // Reply-To: pon {{reply_to}} en la plantilla de EmailJS
+                reply_to: email,
                 fecha: new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
             }).then(function(response) {
                 console.log('Email enviado OK', response.status);
@@ -1782,13 +1891,21 @@
             });
         }
 
-        // Check if already registered on load
+        // ¿Inscrito en este dispositivo? La hoja central manda: si el email
+        // guardado ya no está allí (p. ej. se vació la lista), se muestra otra
+        // vez el formulario en vez de un "ya inscrito" que ya no es cierto.
         (function checkExisting() {
-            const email = localStorage.getItem('carrera_relevos_my_email');
-            if (email) {
-                document.getElementById('reg-form').classList.add('hidden');
-                document.getElementById('reg-success').classList.add('show');
-            }
+            const email = localStorage.getItem(MY_EMAIL_KEY);
+            if (!email) return;
+            mostrarExito();
+            if (!INSCRIPCIONES_ENDPOINT) return;
+            if (pendientesAlCargar.some(function (x) { return x.email === email; })) return;
+            comprobarEmailCentral(email).then(function (existe) {
+                if (existe === false) {
+                    localStorage.removeItem(MY_EMAIL_KEY);
+                    mostrarFormulario();
+                }
+            });
         })();
 
         document.getElementById('signup-form').addEventListener('submit', function(e) {
@@ -1808,32 +1925,61 @@
                 errorEl.style.display = 'block';
                 return;
             }
+            errorEl.style.display = 'none';
 
-            // Check duplicate
-            const inscriptions = getInscriptions();
-            if (inscriptions.some(i => i.email === email)) {
-                document.getElementById('reg-form').classList.add('hidden');
-                document.getElementById('reg-duplicate').classList.add('show');
+            const btn = document.getElementById('btn-submit');
+            const textoBtn = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Enviando…';
+            const fin = function () { btn.disabled = false; btn.textContent = textoBtn; };
+
+            const datos = { nombre: nombre, email: email };
+            const yaEstabaEnLocal = function () {
+                return getInscriptions().some(function (i) { return i.email === email; });
+            };
+            const registrado = function () {
+                const lista = getInscriptions();
+                if (!lista.some(function (i) { return i.email === email; })) {
+                    lista.push({ nombre: nombre, email: email, fecha: new Date().toISOString() });
+                    saveInscriptions(lista);
+                }
+                localStorage.setItem(MY_EMAIL_KEY, email);
+                sendConfirmationEmail(nombre, email);
+                mostrarExito();
+                launchConfetti();
+            };
+
+            // La hoja central decide: en incógnito (sin cookies) también se
+            // detecta que el correo ya está en uso
+            if (!INSCRIPCIONES_ENDPOINT) {
+                fin();
+                if (yaEstabaEnLocal()) { mostrarDuplicado(); return; }
+                registrado();
                 return;
             }
 
-            // Save
-            inscriptions.push({ nombre, email, fecha: new Date().toISOString() });
-            saveInscriptions(inscriptions);
-            localStorage.setItem('carrera_relevos_my_email', email);
-
-            // Envío a la hoja central (si está configurado); si falla, se reencola
-            enviarInscripcionCentral({ nombre: nombre, email: email })
-                .then(function (r) { if (!r || r.ok !== true) encolarPendiente({ nombre: nombre, email: email }); })
-                .catch(function () { encolarPendiente({ nombre: nombre, email: email }); });
-
-            // Send confirmation email
-            sendConfirmationEmail(nombre, email);
-
-            // Show success + confetti
-            document.getElementById('reg-form').classList.add('hidden');
-            document.getElementById('reg-success').classList.add('show');
-            launchConfetti();
+            enviarInscripcionCentral(datos).then(function (r) {
+                fin();
+                if (r && r.ok === true) {
+                    if (r.duplicado === true) {
+                        // No se envía correo de confirmación: ya estaba inscrito
+                        localStorage.setItem(MY_EMAIL_KEY, email);
+                        mostrarDuplicado();
+                        return;
+                    }
+                    registrado();
+                    return;
+                }
+                // El endpoint respondió con error: se guarda local y se reenvía solo
+                encolarPendiente(datos);
+                registrado();
+            }).catch(function () {
+                // Sin conexión: se reencola y se reintentará en la próxima visita
+                fin();
+                if (yaEstabaEnLocal()) { mostrarDuplicado(); return; }
+                encolarPendiente(datos);
+                registrado();
+            });
         });
 
         // ===== Panel privado de inscripciones (?admin=1) =====
@@ -1942,6 +2088,34 @@
                         navigator.clipboard.writeText(csv).then(done).catch(fallback);
                     } else fallback();
                 });
+                // Vaciar la hoja por completo (pide confirmación y la clave)
+                $('admin-clear').addEventListener('click', function () {
+                    if (!INSCRIPCIONES_ENDPOINT) { mostrarError('Falta configurar INSCRIPCIONES_ENDPOINT en index.html (ver INSCRIPCIONES.md).'); return; }
+                    if (!window.confirm('¿Seguro que quieres borrar TODAS las inscripciones? Esta acción no se puede deshacer.')) return;
+                    if (!clave) {
+                        clave = (window.prompt('Clave de administración de inscripciones:') || '').trim();
+                        if (!clave) { mostrarError('Necesitas la clave para vaciar la lista.'); return; }
+                    }
+                    fetch(INSCRIPCIONES_ENDPOINT + '?accion=vaciar', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({ clave: clave })
+                    })
+                        .then(function (r) { return r.json(); })
+                        .then(function (r) {
+                            if (!r || r.ok !== true) {
+                                if (r && r.error === 'clave') {
+                                    try { sessionStorage.removeItem('carrera_relevos_admin_clave'); } catch (e) { }
+                                    clave = '';
+                                }
+                                mostrarError(r && r.error === 'clave' ? 'Clave incorrecta.' : 'No se pudo vaciar la lista.');
+                                return;
+                            }
+                            lista = [];
+                            render();
+                        })
+                        .catch(function () { mostrarError('No se pudo conectar. Comprueba tu conexión y el endpoint.'); });
+                });
                 document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrar(); });
                 cargar();
             }
@@ -1961,6 +2135,7 @@
                     <button id="admin-refresh" type="button" style="padding:8px 14px;border-radius:9999px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(255,180,100,.45);background:transparent;color:#FFB347;">Actualizar</button>
                     <button id="admin-sheet" type="button" style="padding:8px 14px;border-radius:9999px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(255,180,100,.45);background:transparent;color:#FFB347;">Google Sheets</button>
                     <button id="admin-csv" type="button" style="padding:8px 14px;border-radius:9999px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(255,180,100,.45);background:transparent;color:#FFB347;">Copiar CSV</button>
+                    <button id="admin-clear" type="button" style="padding:8px 14px;border-radius:9999px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(239,68,68,.55);background:transparent;color:#fca5a5;">Vaciar lista</button>
                     <button id="admin-close" type="button" style="padding:8px 14px;border-radius:9999px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(255,255,255,.3);background:transparent;color:rgba(255,255,255,.75);">Cerrar</button>
                 </div>
             </div>
